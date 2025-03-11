@@ -21,13 +21,13 @@ type Db struct {
 func OpenRun(d_str string, q_str string) (*sql.Rows, error) {
 	db, err := sql.Open("postgres", d_str)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect DB: %w", err)
 	}
 	defer db.Close()
 
 	rows, err := db.Query(q_str)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to run query: %s %w", q_str, err)
 	}
 
 	return rows, nil // do not close rows here
