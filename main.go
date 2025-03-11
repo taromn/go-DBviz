@@ -18,33 +18,45 @@ type Db struct {
 	SchemaList []Schema
 }
 
-func main() {
-	dsn := os.Getenv("DSN")
-	db, err := sql.Open("postgres", dsn)
+func OpenRun(d_str string, q_str string) (*sql.Rows, error) {
+	db, err := sql.Open("postgres", d_str)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	defer db.Close()
 
-	// select database names
-	db_rows, err := db.Query("SELECT datname FROM pg_database WHERE datistemplate = false;")
+	rows, err := db.Query(q_str)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	defer db_rows.Close()
+
+	return rows, nil // do not close rows here
+}
+
+func main() {
+	dsn := os.Getenv("DSN")
+
+	db_rows, err := OpenRun(dsn, "SELECT datname FROM pg_database WHERE datistemplate = false;")
+
+	if err != nil {
+		log.Println("failed to get DB info:", err)
+		os.Exit(1)
+	}
 
 	var dbs []Db
 	var datname string
 
 	// show rows
 	for db_rows.Next() {
-		err = db_rows.Scan(&datname) // *database/sql.Rows
+		err := db_rows.Scan(&datname) // *database/sql.Rows
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 		fmt.Println(datname)
 		dbs = append(dbs, Db{DBname: datname})
 	}
+	db_rows.Close()
+
 	fmt.Println(dbs)
 
 	// connect to each DB and get schemas
@@ -52,42 +64,34 @@ func main() {
 		each_dbname := dbs[i].DBname
 		fmt.Println(each_dbname)
 		each_dsn := dsn + fmt.Sprintf(" dbname=%s", each_dbname)
-		db_conn, err := sql.Open("postgres", each_dsn)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-		defer db_conn.Close()
 
-		schema_rows, err := db_conn.Query("select nspname from pg_namespace;")
+		schema_rows, err := OpenRun(each_dsn, "select nspname from pg_namespace;")
+
 		if err != nil {
-			log.Print(err)
-			continue
+			log.Println(err)
+			continue // prevent termination
 		}
-		defer schema_rows.Close()
 
 		var schemas []Schema
 		var schema_name string
 
 		// show schema rows
 		for schema_rows.Next() {
-			err = schema_rows.Scan(&schema_name)
+			err := schema_rows.Scan(&schema_name)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 			fmt.Println(schema_name)
 			s := Schema{Sname: schema_name}
 			schemas = append(schemas, s)
 		}
+		schema_rows.Close()
+
 		fmt.Println(schemas)
 
 		dbs[i].SchemaList = schemas
 
-		fmt.Println("final dbs are", dbs)
-
-		// after writing all processes,
-		// normalize the func creating connections
-		// normalize the func of query results -> slices
 	}
+	fmt.Println("final dbs are", dbs)
 
 }
