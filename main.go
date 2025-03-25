@@ -9,8 +9,13 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type Table struct {
+	Tname string
+}
+
 type Schema struct {
-	Sname string
+	Sname     string
+	TableList []Table
 }
 
 type Db struct {
@@ -90,6 +95,39 @@ func main() {
 		fmt.Println(schemas)
 
 		dbs[i].SchemaList = schemas
+
+		for j := range dbs[i].SchemaList {
+			each_sname := dbs[i].SchemaList[j].Sname
+			fmt.Printf("sname is: %s", each_sname)
+
+			table_query := fmt.Sprintf("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '%s';", each_sname)
+
+			table_rows, err := OpenRun(each_dsn, table_query)
+
+			if err != nil {
+				log.Println(err)
+				continue // prevent termination
+			}
+
+			var tables []Table
+			var table_name string
+
+			for table_rows.Next() {
+				err := table_rows.Scan(&table_name)
+				if err != nil {
+					log.Println(err)
+				}
+				fmt.Println(table_name)
+				t := Table{Tname: table_name}
+				tables = append(tables, t)
+			}
+			table_rows.Close()
+
+			fmt.Println(tables)
+
+			dbs[i].SchemaList[j].TableList = tables
+
+		}
 
 	}
 	fmt.Println("final dbs are", dbs)
