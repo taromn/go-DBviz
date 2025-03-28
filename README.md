@@ -26,3 +26,10 @@ User specified in DSN should be able to SELECT the following views
 - pg_database
 - pg_namespace
 - pg_catalog.pg_tables
+
+
+## Disclaimer
+
+The developer of this program assumes no responsibility for any problems that may occur as a result of executing this code.
+
+Do not use in a production environment.
