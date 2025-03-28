@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,11 +11,11 @@ import (
 )
 
 type Table struct {
-	Tname string
+	Tname string `json:"table_name"`
 }
 
 type Schema struct {
-	Sname     string
+	Sname     string `json:"schema_name"`
 	TableList []Table
 }
 
@@ -36,6 +37,16 @@ func OpenRun(d_str string, q_str string) (*sql.Rows, error) {
 	}
 
 	return rows, nil // do not close rows here
+}
+
+func PrintS(st any) {
+	data, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(string(data))
 }
 
 func main() {
@@ -130,6 +141,6 @@ func main() {
 		}
 
 	}
-	fmt.Println("final dbs are", dbs)
+	PrintS(dbs)
 
 }
