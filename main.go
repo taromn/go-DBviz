@@ -39,6 +39,30 @@ func OpenRun(d_str string, q_str string) (*sql.Rows, error) {
 	return rows, nil // do not close rows here
 }
 
+func getDB(dbs *[]DB, dsn string, query string) error {
+
+	db_rows, err := OpenRun(dsn, query)
+
+	if err != nil {
+		return fmt.Errorf("failed to get DB info: %w", err)
+	}
+
+	var datname string
+
+	// show rows
+	for db_rows.Next() {
+		err := db_rows.Scan(&datname) // *database/sql.Rows
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Println(datname)
+		*dbs = append(*dbs, DB{DBname: datname})
+	}
+	db_rows.Close()
+
+	return nil
+}
+
 func PrintS(st any) {
 	data, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
@@ -50,35 +74,26 @@ func PrintS(st any) {
 }
 
 func main() {
+
 	dsn := os.Getenv("DSN")
-
-	db_rows, err := OpenRun(dsn, "SELECT datname FROM pg_database WHERE datistemplate = false;")
-
-	if err != nil {
-		log.Println("failed to get DB info:", err)
+	if dsn == "" {
+		log.Println("DSN is not set")
 		os.Exit(1)
 	}
 
 	var dbs []DB
-	var datname string
 
-	// show rows
-	for db_rows.Next() {
-		err := db_rows.Scan(&datname) // *database/sql.Rows
-		if err != nil {
-			log.Println(err)
-		}
-		fmt.Println(datname)
-		dbs = append(dbs, DB{DBname: datname})
+	err := getDB(&dbs, dsn, "SELECT datname FROM pg_database WHERE datistemplate = false;")
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
 	}
-	db_rows.Close()
-
-	fmt.Println(dbs)
 
 	// connect to each DB and get schemas
 	for i := range dbs {
 		each_dbname := dbs[i].DBname
 		fmt.Println(each_dbname)
+
 		each_dsn := dsn + fmt.Sprintf(" dbname=%s", each_dbname)
 
 		schema_rows, err := OpenRun(each_dsn, "select nspname from pg_namespace;")
