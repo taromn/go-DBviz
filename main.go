@@ -19,7 +19,7 @@ type Schema struct {
 	TableList []Table
 }
 
-type Db struct {
+type DB struct {
 	DBname     string
 	SchemaList []Schema
 }
@@ -59,7 +59,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var dbs []Db
+	var dbs []DB
 	var datname string
 
 	// show rows
@@ -69,7 +69,7 @@ func main() {
 			log.Println(err)
 		}
 		fmt.Println(datname)
-		dbs = append(dbs, Db{DBname: datname})
+		dbs = append(dbs, DB{DBname: datname})
 	}
 	db_rows.Close()
 
