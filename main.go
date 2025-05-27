@@ -24,27 +24,16 @@ type DB struct {
 	SchemaList []Schema
 }
 
-func OpenRun(d_str string, q_str string) (*sql.Rows, error) {
-	db, err := sql.Open("postgres", d_str)
+func getDB(dbs *[]DB, dsn string, query string) error {
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect DB: %w", err)
+		return fmt.Errorf("failed to connect DB: %w", err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query(q_str)
+	db_rows, err := db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run query: %s %w", q_str, err)
-	}
-
-	return rows, nil // do not close rows here
-}
-
-func getDB(dbs *[]DB, dsn string, query string) error {
-
-	db_rows, err := OpenRun(dsn, query)
-
-	if err != nil {
-		return fmt.Errorf("failed to get DB info: %w", err)
+		return fmt.Errorf("failed to run query: %s %w", query, err)
 	}
 
 	var datname string
@@ -62,11 +51,16 @@ func getDB(dbs *[]DB, dsn string, query string) error {
 	return nil
 }
 
-func getSchema(dbs *[]DB, i int, dsn string, query string) error {
-
-	schema_rows, err := OpenRun(dsn, query)
+func getSchema(dbs *[]DB, i int, dsn string, query string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return fmt.Errorf("failed to get Schema info: %w", err)
+		return nil, fmt.Errorf("failed to connect DB: %w", err)
+	}
+
+	schema_rows, err := db.Query(query)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to run query: %s %w", query, err)
 	}
 
 	var schemas []Schema
@@ -86,14 +80,13 @@ func getSchema(dbs *[]DB, i int, dsn string, query string) error {
 
 	(*dbs)[i].SchemaList = schemas
 
-	return nil
+	return db, nil
 }
 
-func getTable(dbs *[]DB, i int, j int, dsn string, query string) error {
-	table_rows, err := OpenRun(dsn, query)
-
+func getTable(db *sql.DB, dbs *[]DB, i int, j int, query string) error {
+	table_rows, err := db.Query(query)
 	if err != nil {
-		return fmt.Errorf("failed to get Table info: %w", err)
+		return fmt.Errorf("failed to run query: %s %w", query, err)
 	}
 
 	var tables []Table
@@ -145,7 +138,7 @@ func main() {
 	for i := range dbs {
 		each_dsn := dsn + fmt.Sprintf(" dbname=%s", dbs[i].DBname)
 
-		err := getSchema(&dbs, i, each_dsn, "select nspname from pg_namespace;")
+		db, err := getSchema(&dbs, i, each_dsn, "select nspname from pg_namespace;")
 		if err != nil {
 			log.Println(err)
 			continue
@@ -156,12 +149,13 @@ func main() {
 
 			table_query := fmt.Sprintf("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '%s';", each_sname)
 
-			err := getTable(&dbs, i, j, each_dsn, table_query)
+			err := getTable(db, &dbs, i, j, table_query)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
 		}
+		db.Close()
 
 	}
 	PrintS(dbs)
