@@ -83,8 +83,8 @@ func getSchema(dbs *[]DB, i int, dsn string, query string) (*sql.DB, error) {
 	return db, nil
 }
 
-func getTable(db *sql.DB, dbs *[]DB, i int, j int, query string) error {
-	table_rows, err := db.Query(query)
+func getTable(db *sql.DB, dbs *[]DB, i int, j int, query string, sname string) error {
+	table_rows, err := db.Query(query, sname)
 	if err != nil {
 		return fmt.Errorf("failed to run query: %s %w", query, err)
 	}
@@ -146,10 +146,9 @@ func main() {
 		// tables for each schema
 		for j := range dbs[i].SchemaList {
 			each_sname := dbs[i].SchemaList[j].Sname
+			table_query := "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1;"
 
-			table_query := fmt.Sprintf("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '%s';", each_sname)
-
-			err := getTable(db, &dbs, i, j, table_query)
+			err := getTable(db, &dbs, i, j, table_query, each_sname)
 			if err != nil {
 				log.Println(err)
 				continue
