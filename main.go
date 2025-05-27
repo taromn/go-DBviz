@@ -53,12 +53,64 @@ func getDB(dbs *[]DB, dsn string, query string) error {
 	for db_rows.Next() {
 		err := db_rows.Scan(&datname) // *database/sql.Rows
 		if err != nil {
-			log.Println(err)
+			return fmt.Errorf("failed to scan DB rows: %w", err)
 		}
-		fmt.Println(datname)
 		*dbs = append(*dbs, DB{DBname: datname})
 	}
 	db_rows.Close()
+
+	return nil
+}
+
+func getSchema(dbs *[]DB, i int, dsn string, query string) error {
+
+	schema_rows, err := OpenRun(dsn, query)
+	if err != nil {
+		return fmt.Errorf("failed to get Schema info: %w", err)
+	}
+
+	var schemas []Schema
+	var schema_name string
+
+	// show schema rows
+	for schema_rows.Next() {
+		err := schema_rows.Scan(&schema_name)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		s := Schema{Sname: schema_name}
+		schemas = append(schemas, s)
+	}
+	schema_rows.Close()
+
+	(*dbs)[i].SchemaList = schemas
+
+	return nil
+}
+
+func getTable(dbs *[]DB, i int, j int, dsn string, query string) error {
+	table_rows, err := OpenRun(dsn, query)
+
+	if err != nil {
+		return fmt.Errorf("failed to get Table info: %w", err)
+	}
+
+	var tables []Table
+	var table_name string
+
+	for table_rows.Next() {
+		err := table_rows.Scan(&table_name)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		t := Table{Tname: table_name}
+		tables = append(tables, t)
+	}
+	table_rows.Close()
+
+	(*dbs)[i].SchemaList[j].TableList = tables
 
 	return nil
 }
@@ -74,7 +126,7 @@ func PrintS(st any) {
 }
 
 func main() {
-
+	// example: export DSN="host=example-instance.rds.amazonaws.com port=5432 user=testuser password=xxx sslmode=disable"
 	dsn := os.Getenv("DSN")
 	if dsn == "" {
 		log.Println("DSN is not set")
@@ -91,68 +143,24 @@ func main() {
 
 	// connect to each DB and get schemas
 	for i := range dbs {
-		each_dbname := dbs[i].DBname
-		fmt.Println(each_dbname)
+		each_dsn := dsn + fmt.Sprintf(" dbname=%s", dbs[i].DBname)
 
-		each_dsn := dsn + fmt.Sprintf(" dbname=%s", each_dbname)
-
-		schema_rows, err := OpenRun(each_dsn, "select nspname from pg_namespace;")
-
+		err := getSchema(&dbs, i, each_dsn, "select nspname from pg_namespace;")
 		if err != nil {
 			log.Println(err)
-			continue // prevent termination
+			continue
 		}
-
-		var schemas []Schema
-		var schema_name string
-
-		// show schema rows
-		for schema_rows.Next() {
-			err := schema_rows.Scan(&schema_name)
-			if err != nil {
-				log.Println(err)
-			}
-			fmt.Println(schema_name)
-			s := Schema{Sname: schema_name}
-			schemas = append(schemas, s)
-		}
-		schema_rows.Close()
-
-		fmt.Println(schemas)
-
-		dbs[i].SchemaList = schemas
-
+		// tables for each schema
 		for j := range dbs[i].SchemaList {
 			each_sname := dbs[i].SchemaList[j].Sname
-			fmt.Printf("sname is: %s", each_sname)
 
 			table_query := fmt.Sprintf("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '%s';", each_sname)
 
-			table_rows, err := OpenRun(each_dsn, table_query)
-
+			err := getTable(&dbs, i, j, each_dsn, table_query)
 			if err != nil {
 				log.Println(err)
-				continue // prevent termination
+				continue
 			}
-
-			var tables []Table
-			var table_name string
-
-			for table_rows.Next() {
-				err := table_rows.Scan(&table_name)
-				if err != nil {
-					log.Println(err)
-				}
-				fmt.Println(table_name)
-				t := Table{Tname: table_name}
-				tables = append(tables, t)
-			}
-			table_rows.Close()
-
-			fmt.Println(tables)
-
-			dbs[i].SchemaList[j].TableList = tables
-
 		}
 
 	}
